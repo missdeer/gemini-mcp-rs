@@ -22,11 +22,6 @@ jobs:
             os: ubuntu-latest
             artifact_name: gemini-mcp-rs
             asset_name: gemini-mcp-rs_Linux_x86_64.tar.gz
-          # Linux arm64
-          - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
-            artifact_name: gemini-mcp-rs
-            asset_name: gemini-mcp-rs_Linux_arm64.tar.gz
           # macOS x86_64
           - target: x86_64-apple-darwin
             os: macos-latest
@@ -42,11 +37,6 @@ jobs:
             os: windows-latest
             artifact_name: gemini-mcp-rs.exe
             asset_name: gemini-mcp-rs_Windows_x86_64.zip
-          # Windows arm64
-          - target: aarch64-pc-windows-msvc
-            os: windows-latest
-            artifact_name: gemini-mcp-rs.exe
-            asset_name: gemini-mcp-rs_Windows_arm64.zip
 
     steps:
       - name: Checkout
@@ -56,12 +46,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-
-      - name: Install cross-compilation tools (Linux)
-        if: matrix.os == 'ubuntu-latest' && contains(matrix.target, 'aarch64')
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
 
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}
@@ -143,12 +127,6 @@ jobs:
             .packages |= map(.version = $v)
           ' server.json > "$tmpfile"
           mv "$tmpfile" server.json
-
-      - name: Publish npm package
-        working-directory: npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public --provenance
 
       - name: Install mcp-publisher
         run: |
