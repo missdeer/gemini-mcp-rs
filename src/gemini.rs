@@ -41,11 +41,7 @@ pub struct GeminiResult {
 }
 
 /// Process a single JSON line from the gemini CLI output
-fn process_json_line(
-    line_data: &Value,
-    result: &mut GeminiResult,
-    return_all_messages: bool,
-) {
+fn process_json_line(line_data: &Value, result: &mut GeminiResult, return_all_messages: bool) {
     // Collect all messages if requested - store the raw Value to handle objects, arrays, and primitives
     // Limit the number of messages to prevent memory exhaustion
     if return_all_messages && result.all_messages.len() < MAX_MESSAGES_LIMIT {
@@ -60,8 +56,14 @@ fn process_json_line(
     }
 
     // Extract agent messages
-    let item_type = line_data.get(KEY_TYPE).and_then(|v| v.as_str()).unwrap_or("");
-    let item_role = line_data.get(KEY_ROLE).and_then(|v| v.as_str()).unwrap_or("");
+    let item_type = line_data
+        .get(KEY_TYPE)
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let item_role = line_data
+        .get(KEY_ROLE)
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
 
     if item_type == TYPE_MESSAGE && item_role == ROLE_ASSISTANT {
         if let Some(content) = line_data.get(KEY_CONTENT).and_then(|v| v.as_str()) {
@@ -128,12 +130,16 @@ fn build_command(opts: &Options) -> Command {
 pub async fn run(opts: Options) -> Result<GeminiResult> {
     // Validate options
     if opts.prompt.trim().is_empty() {
-        return Err(anyhow::anyhow!("Prompt must be a non-empty, non-whitespace string"));
+        return Err(anyhow::anyhow!(
+            "Prompt must be a non-empty, non-whitespace string"
+        ));
     }
 
     if let Some(timeout) = opts.timeout_secs {
         if timeout == 0 || timeout > 3600 {
-            return Err(anyhow::anyhow!("timeout_secs must be between 1 and 3600 seconds"));
+            return Err(anyhow::anyhow!(
+                "timeout_secs must be between 1 and 3600 seconds"
+            ));
         }
     }
 
@@ -144,13 +150,21 @@ pub async fn run(opts: Options) -> Result<GeminiResult> {
     cmd.kill_on_drop(true);
     let mut child = cmd.spawn().context("Failed to spawn gemini command")?;
 
-    match timeout(timeout_duration, run_with_child(&mut child, opts.return_all_messages)).await {
+    match timeout(
+        timeout_duration,
+        run_with_child(&mut child, opts.return_all_messages),
+    )
+    .await
+    {
         Ok(result) => result,
         Err(_) => {
             // Explicitly kill the child process on timeout to avoid zombies
             let _ = child.kill().await;
             let _ = child.wait().await;
-            Err(anyhow::anyhow!("Gemini command timed out after {} seconds", timeout_duration.as_secs()))
+            Err(anyhow::anyhow!(
+                "Gemini command timed out after {} seconds",
+                timeout_duration.as_secs()
+            ))
         }
     }
 }
@@ -263,7 +277,11 @@ async fn run_with_child(
         }
         // Always include non-JSON output on failure to help with diagnosis
         if !non_json_lines.is_empty() {
-            full_error = format!("{}\nNon-JSON output: {}", full_error, non_json_lines.join("\n"));
+            full_error = format!(
+                "{}\nNon-JSON output: {}",
+                full_error,
+                non_json_lines.join("\n")
+            );
         }
         result.error = Some(full_error);
     } else if !non_json_lines.is_empty() && !valid_json_seen {
@@ -288,7 +306,10 @@ fn enforce_required_fields(mut result: GeminiResult) -> GeminiResult {
     // Only require agent_messages if return_all_messages is false and all_messages is empty
     if result.agent_messages.is_empty() && !result.return_all_messages {
         errors.push("Failed to get `agent_messages` from the gemini session.\nYou can try to set `return_all_messages` to `True` to get the full information.".to_string());
-    } else if result.agent_messages.is_empty() && result.return_all_messages && result.all_messages.is_empty() {
+    } else if result.agent_messages.is_empty()
+        && result.return_all_messages
+        && result.all_messages.is_empty()
+    {
         errors.push("Failed to get any messages from the gemini session.".to_string());
     }
 
@@ -415,9 +436,7 @@ mod tests {
         let program = cmd.as_std().get_program();
 
         // Should use "gemini" as the binary name (or GEMINI_BIN env var)
-        assert!(
-            program == "gemini" || program.to_string_lossy().contains("gemini")
-        );
+        assert!(program == "gemini" || program.to_string_lossy().contains("gemini"));
     }
 
     #[test]
@@ -435,9 +454,7 @@ mod tests {
         let program = cmd.as_std().get_program();
 
         // Should use "gemini" as the binary name
-        assert!(
-            program == "gemini" || program.to_string_lossy().contains("gemini")
-        );
+        assert!(program == "gemini" || program.to_string_lossy().contains("gemini"));
     }
 
     #[test]
@@ -454,8 +471,6 @@ mod tests {
         let cmd = build_command(&opts);
         let program = cmd.as_std().get_program();
 
-        assert!(
-            program == "gemini" || program.to_string_lossy().contains("gemini")
-        );
+        assert!(program == "gemini" || program.to_string_lossy().contains("gemini"));
     }
 }

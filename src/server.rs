@@ -211,5 +211,4 @@ mod tests {
         // Empty session_id is deserialized as Some(""), but will be filtered to None in the handler
         assert_eq!(args.session_id, Some("".to_string()));
     }
-
 }
