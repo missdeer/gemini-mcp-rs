@@ -1,7 +1,9 @@
 use anyhow::{Context, Result};
 use serde_json::Value;
+use std::path::PathBuf;
 use std::process::Stdio;
 use std::time::Duration;
+use tokio::fs;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::time::timeout;
@@ -19,6 +21,8 @@ const DEFAULT_TIMEOUT_SECS: u64 = 600; // 10 minutes
 const MAX_MESSAGES_LIMIT: usize = 10000; // Maximum number of messages to store
 const MAX_NON_JSON_LINES: usize = 1000; // Maximum non-JSON lines to store
 const MAX_STDERR_BYTES: usize = 100_000; // Maximum stderr output to capture (100KB)
+const GEMINI_CONFIG_FILE: &str = "GEMINI.md"; // Configuration file name
+const MAX_CONFIG_SIZE: usize = 100_000; // Maximum GEMINI.md file size (100KB)
 
 #[derive(Debug, Clone)]
 pub struct Options {
@@ -38,6 +42,74 @@ pub struct GeminiResult {
     pub all_messages: Vec<Value>,
     pub return_all_messages: bool,
     pub error: Option<String>,
+}
+
+/// Attempt to read GEMINI.md configuration file from the current directory
+/// Returns the content if found and readable, otherwise returns None
+/// Logs warnings for read errors (except file not found) and size limit violations
+async fn read_gemini_config() -> Option<String> {
+    read_gemini_config_from_path(&PathBuf::from(GEMINI_CONFIG_FILE)).await
+}
+
+/// Internal function to read GEMINI.md configuration from a specific path
+/// This is separated to allow for testing with custom paths
+/// Exposed publicly for integration tests
+pub async fn read_gemini_config_from_path(config_path: &PathBuf) -> Option<String> {
+    // First check if file exists and get metadata
+    let metadata = match fs::metadata(config_path).await {
+        Ok(meta) => meta,
+        Err(e) => {
+            // Only log if it's not a "file not found" error
+            if e.kind() != std::io::ErrorKind::NotFound {
+                eprintln!(
+                    "Warning: Cannot access GEMINI.md configuration file: {}",
+                    e
+                );
+            }
+            return None;
+        }
+    };
+
+    // Check file size before reading
+    let file_size = metadata.len() as usize;
+    if file_size > MAX_CONFIG_SIZE {
+        eprintln!(
+            "Warning: GEMINI.md file is too large ({} bytes, max {} bytes). Configuration will be ignored.",
+            file_size, MAX_CONFIG_SIZE
+        );
+        return None;
+    }
+
+    // Read the file content
+    match fs::read_to_string(config_path).await {
+        Ok(content) => {
+            // Check if content is effectively empty (only whitespace)
+            if content.trim().is_empty() {
+                eprintln!("Warning: GEMINI.md file is empty and will be ignored.");
+                None
+            } else {
+                // Return original content to preserve formatting, not trimmed version
+                Some(content)
+            }
+        }
+        Err(e) => {
+            eprintln!(
+                "Warning: Failed to read GEMINI.md configuration file: {}",
+                e
+            );
+            None
+        }
+    }
+}
+
+/// Prepare the final prompt by prepending GEMINI.md content if it exists
+async fn prepare_prompt(user_prompt: &str) -> String {
+    match read_gemini_config().await {
+        Some(config_content) => {
+            format!("{}\n\n{}", config_content, user_prompt)
+        }
+        None => user_prompt.to_string(),
+    }
 }
 
 /// Process a single JSON line from the gemini CLI output
@@ -145,14 +217,30 @@ pub async fn run(opts: Options) -> Result<GeminiResult> {
 
     let timeout_duration = Duration::from_secs(opts.timeout_secs.unwrap_or(DEFAULT_TIMEOUT_SECS));
 
+    // Prepare the final prompt by prepending GEMINI.md content if it exists
+    let final_prompt = prepare_prompt(&opts.prompt).await;
+
+    // Store return_all_messages before moving opts
+    let return_all_messages = opts.return_all_messages;
+
+    // Create modified options with the final prompt
+    let modified_opts = Options {
+        prompt: final_prompt,
+        sandbox: opts.sandbox,
+        session_id: opts.session_id,
+        return_all_messages,
+        model: opts.model,
+        timeout_secs: opts.timeout_secs,
+    };
+
     // Build and spawn the command with kill_on_drop enabled
-    let mut cmd = build_command(&opts);
+    let mut cmd = build_command(&modified_opts);
     cmd.kill_on_drop(true);
     let mut child = cmd.spawn().context("Failed to spawn gemini command")?;
 
     match timeout(
         timeout_duration,
-        run_with_child(&mut child, opts.return_all_messages),
+        run_with_child(&mut child, return_all_messages),
     )
     .await
     {
@@ -472,5 +560,89 @@ mod tests {
         let program = cmd.as_std().get_program();
 
         assert!(program == "gemini" || program.to_string_lossy().contains("gemini"));
+    }
+
+    #[tokio::test]
+    async fn test_read_gemini_config_nonexistent_file() {
+        use tempfile::TempDir;
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("GEMINI.md");
+
+        let result = read_gemini_config_from_path(&config_path).await;
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_read_gemini_config_with_content() {
+        use tempfile::TempDir;
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("GEMINI.md");
+
+        let test_content = "Test configuration content";
+        fs::write(&config_path, test_content).await.unwrap();
+
+        let result = read_gemini_config_from_path(&config_path).await;
+        assert_eq!(result, Some(test_content.to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_read_gemini_config_empty_file() {
+        use tempfile::TempDir;
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("GEMINI.md");
+
+        // File with only whitespace should be considered empty
+        fs::write(&config_path, "   \n  \n  ").await.unwrap();
+
+        let result = read_gemini_config_from_path(&config_path).await;
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_read_gemini_config_preserves_formatting() {
+        use tempfile::TempDir;
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("GEMINI.md");
+
+        // Content with intentional leading/trailing whitespace and newlines
+        let test_content = "\n# Header\n\nContent with spaces.  \n\n";
+        fs::write(&config_path, test_content).await.unwrap();
+
+        let result = read_gemini_config_from_path(&config_path).await;
+        // Should preserve original formatting, not trim it
+        assert_eq!(result, Some(test_content.to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_read_gemini_config_too_large() {
+        use tempfile::TempDir;
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("GEMINI.md");
+
+        let large_content = "x".repeat(MAX_CONFIG_SIZE + 1);
+        fs::write(&config_path, large_content).await.unwrap();
+
+        let result = read_gemini_config_from_path(&config_path).await;
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_prepare_prompt_without_config() {
+        use tempfile::TempDir;
+        let _temp_dir = TempDir::new().unwrap();
+
+        let user_prompt = "Test user prompt";
+        let result = prepare_prompt(user_prompt).await;
+
+        // Without config, prompt should be unchanged
+        assert!(result.contains(user_prompt));
+    }
+
+    #[tokio::test]
+    async fn test_prepare_prompt_preserves_user_prompt() {
+        let user_prompt = "What is 2+2?";
+        let result = prepare_prompt(user_prompt).await;
+
+        assert!(result.contains(user_prompt));
     }
 }

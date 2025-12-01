@@ -152,6 +152,39 @@ The server provides a single `gemini` tool with the following parameters:
   cargo run
   ```
 
+### GEMINI.md Configuration File
+
+The server supports a `GEMINI.md` file in your current working directory. If this file exists, its content will be automatically prepended to every prompt sent to the Gemini CLI. This is useful for:
+
+- **Project-specific context**: Add context about your project that should be included in every request
+- **Coding style preferences**: Define consistent style guidelines for generated code
+- **Domain-specific knowledge**: Include domain terminology or requirements
+- **Response formatting**: Specify how you want responses formatted
+
+**Example GEMINI.md:**
+```markdown
+# Project Context
+
+You are working on a Rust MCP server project. Please follow these guidelines:
+- Use idiomatic Rust code with proper error handling
+- Follow the existing code style in the project
+- Add comments for complex logic
+- Consider performance and memory efficiency
+```
+
+**Usage:**
+1. Create a file named `GEMINI.md` in your working directory
+2. Add your configuration content
+3. The content will be automatically prepended to all prompts
+
+**Limitations and Warnings:**
+- Maximum file size: 100KB (files larger than this will be ignored with a warning)
+- Empty files (or files with only whitespace) are ignored
+- File read errors (e.g., permission issues) are logged as warnings
+- The original file formatting is preserved (including leading/trailing whitespace and newlines)
+
+**Note:** This repository includes a `GEMINI.md` file that provides project context for AI-driven development. You can create your own `GEMINI.md` in any project directory where you use this MCP server.
+
 ## Testing
 
 ```bash

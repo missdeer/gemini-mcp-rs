@@ -41,4 +41,26 @@ mod tests {
         assert_eq!(opts.model, Some("gemini-pro".to_string()));
         assert_eq!(opts.timeout_secs, Some(300));
     }
+
+    #[tokio::test]
+    async fn test_gemini_md_config_prepending() {
+        // This test verifies that GEMINI.md content is properly read and would be prepended
+        // We use the internal read_gemini_config_from_path function for integration testing
+        use tokio::fs;
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("GEMINI.md");
+        let config_content = "You are a helpful assistant working on a Rust project.";
+        fs::write(&config_path, config_content).await.unwrap();
+
+        // Call the internal function used by the real implementation
+        let loaded_config = gemini_mcp_rs::gemini::read_gemini_config_from_path(&config_path).await;
+
+        // Verify the config was loaded correctly
+        assert_eq!(loaded_config, Some(config_content.to_string()));
+
+        // The full prepending logic (config + user prompt) is tested in unit tests
+        // This integration test verifies the complete file reading path works end-to-end
+    }
 }

@@ -70,6 +70,7 @@ Returns GeminiResult with session_id, agent_messages, all_messages
 - Calls `gemini::run()` and formats response as `GeminiOutput`
 
 **gemini.rs:run()** - Core execution function that:
+- Reads `GEMINI.md` from the current directory (if it exists) and prepends its content to the user's prompt
 - Builds the `gemini` command with proper arguments
 - Uses Windows-specific prompt escaping when needed
 - Spawns subprocess with stdin=null, stdout/stderr=piped
@@ -90,6 +91,20 @@ Returns GeminiResult with session_id, agent_messages, all_messages
 **Platform Differences**: Windows requires special prompt escaping (backslashes, quotes, newlines) to prevent shell interpretation issues.
 
 **Streaming Output**: The Gemini CLI outputs JSONL (JSON Lines). The server reads line-by-line to handle potentially long-running operations and collect all agent messages incrementally.
+
+**GEMINI.md Configuration**: The server supports a `GEMINI.md` configuration file in the current working directory. If present, its content is automatically prepended to every user prompt before sending to the Gemini CLI. This allows for:
+- Project-specific context and instructions
+- Consistent coding style preferences
+- Domain-specific knowledge
+- Custom response formatting requirements
+
+Implementation details:
+- The file is read asynchronously with proper error handling
+- Maximum file size: 100KB (larger files are rejected with a warning)
+- Empty files (only whitespace) are ignored with a warning
+- File read errors (except not found) are logged as warnings to stderr
+- Original formatting is preserved (no trimming of leading/trailing whitespace)
+- This repository's `GEMINI.md` provides an example of project context configuration
 
 ## Dependencies
 
