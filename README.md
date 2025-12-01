@@ -49,7 +49,27 @@ Or after building:
 
 ## Installation
 
-### Option 1: Build from Source
+### Option 1: Quick Install (Linux/macOS)
+
+Install the latest release with a single command:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/missdeer/gemini-mcp-rs/master/scripts/install.sh | bash
+```
+
+Or install a specific version:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/missdeer/gemini-mcp-rs/master/scripts/install.sh | bash -s v0.1.0
+```
+
+This script will:
+- Detect your platform and architecture
+- Download the appropriate binary from GitHub releases
+- Install it to `~/.local/bin` (or `/usr/local/bin` if needed)
+- Automatically add it to your Claude MCP configuration
+
+### Option 2: Build from Source
 
 ```bash
 git clone https://github.com/missdeer/gemini-mcp-rs.git
@@ -58,7 +78,7 @@ cargo build --release
 claude mcp add gemini-rs -s user --transport stdio -- $(pwd)/target/release/gemini-mcp-rs
 ```
 
-### Option 2: Install from Release
+### Option 3: Install from Release
 
 Download the appropriate binary for your platform from the releases page, extract it, and add to your MCP configuration:
 
