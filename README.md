@@ -47,6 +47,24 @@ Or after building:
 ./target/release/gemini-mcp-rs
 ```
 
+### Command-Line Options
+
+```bash
+# Display help information
+./target/release/gemini-mcp-rs --help
+
+# Display version information
+./target/release/gemini-mcp-rs --version
+```
+
+The `--help` flag provides comprehensive documentation including:
+- Environment variables
+- MCP client configuration examples
+- All supported tool parameters
+- GEMINI.md configuration file support
+- Return structure format
+- Best practices and security information
+
 ## Installation
 
 ### Option 1: Quick Install (Linux/macOS)
@@ -202,7 +220,7 @@ GEMINI_BIN=/path/to/gemini cargo test
 
 The project follows a modular architecture:
 
-- `src/main.rs`: Entry point that starts the MCP server
+- `src/main.rs`: Entry point that parses CLI arguments and starts the MCP server
 - `src/lib.rs`: Library root that exports modules
 - `src/server.rs`: MCP server implementation and tool handlers
 - `src/gemini.rs`: Gemini CLI execution and result parsing
