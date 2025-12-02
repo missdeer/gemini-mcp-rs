@@ -21,6 +21,8 @@ cargo build --release    # Build optimized binary
 ### Running
 ```bash
 cargo run                # Run the MCP server (listens on stdio)
+cargo run -- --help      # Display help information
+cargo run -- --version   # Display version information
 ```
 
 ### Testing
@@ -41,7 +43,10 @@ cargo fmt                # Format code
 ### Entry Point and Server Setup
 The application follows a simple architecture:
 
-1. **main.rs** - Entry point that initializes the MCP server with stdio transport
+1. **main.rs** - Entry point that:
+   - Parses command-line arguments (`-h/--help`, `--version`) using clap
+   - Initializes the MCP server with stdio transport
+   - Provides comprehensive help documentation for users
 2. **server.rs** - Defines the `gemini` MCP tool and handles parameter validation
 3. **gemini.rs** - Core Gemini CLI wrapper that spawns processes and parses output
 4. **lib.rs** - Module declarations
@@ -113,7 +118,7 @@ The project uses:
 - **tokio** - Async runtime (required by rmcp)
 - **serde/serde_json** - Serialization for MCP protocol and Gemini output parsing
 - **anyhow** - Error handling
-- **uuid** - Session ID handling
+- **clap** - Command-line argument parsing for help/version flags
 
 ## Gemini CLI Integration
 
