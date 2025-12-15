@@ -16,9 +16,21 @@ const KEY_MESSAGE: &str = "message";
 const TYPE_MESSAGE: &str = "message";
 const ROLE_ASSISTANT: &str = "assistant";
 const DEFAULT_TIMEOUT_SECS: u64 = 600; // 10 minutes
+pub(crate) const MIN_TIMEOUT_SECS: u64 = 1;
+pub(crate) const MAX_TIMEOUT_SECS: u64 = 3600; // 1 hour
+const ENV_DEFAULT_TIMEOUT: &str = "GEMINI_DEFAULT_TIMEOUT";
 const MAX_MESSAGES_LIMIT: usize = 10000; // Maximum number of messages to store
 const MAX_NON_JSON_LINES: usize = 1000; // Maximum non-JSON lines to store
 const MAX_STDERR_BYTES: usize = 100_000; // Maximum stderr output to capture (100KB)
+
+/// Get the default timeout from environment variable or use the hardcoded default
+fn get_default_timeout() -> u64 {
+    std::env::var(ENV_DEFAULT_TIMEOUT)
+        .ok()
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .filter(|&t| (MIN_TIMEOUT_SECS..=MAX_TIMEOUT_SECS).contains(&t))
+        .unwrap_or(DEFAULT_TIMEOUT_SECS)
+}
 
 #[derive(Debug, Clone)]
 pub struct Options {
@@ -136,14 +148,17 @@ pub async fn run(opts: Options) -> Result<GeminiResult> {
     }
 
     if let Some(timeout) = opts.timeout_secs {
-        if timeout == 0 || timeout > 3600 {
+        if !(MIN_TIMEOUT_SECS..=MAX_TIMEOUT_SECS).contains(&timeout) {
             return Err(anyhow::anyhow!(
-                "timeout_secs must be between 1 and 3600 seconds"
+                "timeout_secs must be between {} and {} seconds",
+                MIN_TIMEOUT_SECS,
+                MAX_TIMEOUT_SECS
             ));
         }
     }
 
-    let timeout_duration = Duration::from_secs(opts.timeout_secs.unwrap_or(DEFAULT_TIMEOUT_SECS));
+    let timeout_duration =
+        Duration::from_secs(opts.timeout_secs.unwrap_or_else(get_default_timeout));
 
     // Build and spawn the command with kill_on_drop enabled
     let mut cmd = build_command(&opts);
@@ -472,5 +487,182 @@ mod tests {
         let program = cmd.as_std().get_program();
 
         assert!(program == "gemini" || program.to_string_lossy().contains("gemini"));
+    }
+
+    /// RAII guard to restore environment variable on drop
+    struct EnvVarGuard {
+        key: &'static str,
+        original: Option<String>,
+    }
+
+    impl EnvVarGuard {
+        fn new(key: &'static str) -> Self {
+            let original = std::env::var(key).ok();
+            Self { key, original }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            match &self.original {
+                Some(val) => std::env::set_var(self.key, val),
+                None => std::env::remove_var(self.key),
+            }
+        }
+    }
+
+    // Note: This test covers all env var scenarios in a single test to avoid
+    // race conditions when tests run in parallel (env vars are process-global state)
+    #[test]
+    fn test_get_default_timeout_env_var() {
+        // Save and restore the original env var value using RAII guard
+        let _guard = EnvVarGuard::new(ENV_DEFAULT_TIMEOUT);
+
+        // Test without env var
+        std::env::remove_var(ENV_DEFAULT_TIMEOUT);
+        assert_eq!(get_default_timeout(), DEFAULT_TIMEOUT_SECS);
+
+        // Test with valid values
+        std::env::set_var(ENV_DEFAULT_TIMEOUT, "300");
+        assert_eq!(get_default_timeout(), 300);
+
+        // Test boundary: minimum valid value
+        std::env::set_var(ENV_DEFAULT_TIMEOUT, "1");
+        assert_eq!(get_default_timeout(), 1);
+
+        // Test boundary: maximum valid value
+        std::env::set_var(ENV_DEFAULT_TIMEOUT, "3600");
+        assert_eq!(get_default_timeout(), 3600);
+
+        // Test with whitespace (should be trimmed)
+        std::env::set_var(ENV_DEFAULT_TIMEOUT, "  300  ");
+        assert_eq!(get_default_timeout(), 300);
+
+        // Test with non-numeric value (should fallback)
+        std::env::set_var(ENV_DEFAULT_TIMEOUT, "invalid");
+        assert_eq!(get_default_timeout(), DEFAULT_TIMEOUT_SECS);
+
+        // Test with zero (invalid, should fallback)
+        std::env::set_var(ENV_DEFAULT_TIMEOUT, "0");
+        assert_eq!(get_default_timeout(), DEFAULT_TIMEOUT_SECS);
+
+        // Test with value > MAX_TIMEOUT_SECS (invalid, should fallback)
+        std::env::set_var(ENV_DEFAULT_TIMEOUT, "3601");
+        assert_eq!(get_default_timeout(), DEFAULT_TIMEOUT_SECS);
+
+        // Test with negative value (should fallback since u64 parse fails)
+        std::env::set_var(ENV_DEFAULT_TIMEOUT, "-100");
+        assert_eq!(get_default_timeout(), DEFAULT_TIMEOUT_SECS);
+
+        // Test with empty string (should fallback)
+        std::env::set_var(ENV_DEFAULT_TIMEOUT, "");
+        assert_eq!(get_default_timeout(), DEFAULT_TIMEOUT_SECS);
+
+        // Test with floating point (should fallback since u64 parse fails)
+        std::env::set_var(ENV_DEFAULT_TIMEOUT, "300.5");
+        assert_eq!(get_default_timeout(), DEFAULT_TIMEOUT_SECS);
+
+        // Test with leading zeros (should work)
+        std::env::set_var(ENV_DEFAULT_TIMEOUT, "0300");
+        assert_eq!(get_default_timeout(), 300);
+
+        // Test with very large number (should fallback)
+        std::env::set_var(ENV_DEFAULT_TIMEOUT, "999999999999999999999");
+        assert_eq!(get_default_timeout(), DEFAULT_TIMEOUT_SECS);
+
+        // Test with special characters (should fallback)
+        std::env::set_var(ENV_DEFAULT_TIMEOUT, "300s");
+        assert_eq!(get_default_timeout(), DEFAULT_TIMEOUT_SECS);
+
+        // Test with tabs (should be trimmed)
+        std::env::set_var(ENV_DEFAULT_TIMEOUT, "\t300\t");
+        assert_eq!(get_default_timeout(), 300);
+
+        // Test with newlines (should be trimmed)
+        std::env::set_var(ENV_DEFAULT_TIMEOUT, "\n300\n");
+        assert_eq!(get_default_timeout(), 300);
+    }
+
+    #[test]
+    fn test_timeout_validation_in_run() {
+        // Test that invalid timeout_secs values are rejected
+        let opts = Options {
+            prompt: "test".to_string(),
+            sandbox: false,
+            session_id: None,
+            return_all_messages: false,
+            model: None,
+            timeout_secs: Some(0), // Invalid: below minimum
+        };
+
+        // We can't actually run the command, but we can verify the validation logic
+        // by checking that the error message mentions timeout
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let result = runtime.block_on(run(opts));
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("timeout_secs"));
+        assert!(err_msg.contains("1"));
+        assert!(err_msg.contains("3600"));
+    }
+
+    #[test]
+    fn test_timeout_validation_above_max() {
+        let opts = Options {
+            prompt: "test".to_string(),
+            sandbox: false,
+            session_id: None,
+            return_all_messages: false,
+            model: None,
+            timeout_secs: Some(3601), // Invalid: above maximum
+        };
+
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let result = runtime.block_on(run(opts));
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("timeout_secs"));
+    }
+
+    #[test]
+    fn test_timeout_validation_valid_boundaries() {
+        // Test minimum valid value (1 second)
+        let opts_min = Options {
+            prompt: "test".to_string(),
+            sandbox: false,
+            session_id: None,
+            return_all_messages: false,
+            model: None,
+            timeout_secs: Some(1), // Valid: minimum
+        };
+
+        // This will fail because gemini CLI doesn't exist, but it should pass validation
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let result = runtime.block_on(run(opts_min));
+        // Error should be about spawning gemini, not about timeout validation
+        if let Err(e) = result {
+            assert!(
+                !e.to_string().contains("timeout_secs"),
+                "Should not fail on timeout validation"
+            );
+        }
+
+        // Test maximum valid value (3600 seconds)
+        let opts_max = Options {
+            prompt: "test".to_string(),
+            sandbox: false,
+            session_id: None,
+            return_all_messages: false,
+            model: None,
+            timeout_secs: Some(3600), // Valid: maximum
+        };
+
+        let result = runtime.block_on(run(opts_max));
+        if let Err(e) = result {
+            assert!(
+                !e.to_string().contains("timeout_secs"),
+                "Should not fail on timeout validation"
+            );
+        }
     }
 }

@@ -12,6 +12,7 @@ use rmcp::{transport::stdio, ServiceExt};
     long_about = None,
     after_help = "ENVIRONMENT VARIABLES:
   GEMINI_BIN                   Override the gemini binary path (default: 'gemini')
+  GEMINI_DEFAULT_TIMEOUT       Default timeout in seconds (1-3600, default: 600)
 
 USAGE:
   This server communicates via stdio using the Model Context Protocol (MCP).
@@ -34,7 +35,7 @@ SUPPORTED PARAMETERS:
   SESSION_ID                   Resume an existing session (from previous response)
   return_all_messages          Return all messages including reasoning (default: false)
   model                        Model to use (overrides Gemini CLI default)
-  timeout_secs                 Timeout in seconds (default: 600, max: 3600)
+  timeout_secs                 Timeout in seconds (1-3600, default: GEMINI_DEFAULT_TIMEOUT or 600)
 
 GEMINI.md SUPPORT:
   If a GEMINI.md file exists in the working directory, its content will be

@@ -118,6 +118,7 @@ The server provides a single `gemini` tool with the following parameters:
 - `SESSION_ID` (string): Resume the specified session of the gemini. Defaults to empty string, start a new session
 - `return_all_messages` (bool): Return all messages (e.g. reasoning, tool calls, etc.) from the gemini session. Set to `False` by default, only the agent's final reply message is returned
 - `model` (string): The model to use for the gemini session. This parameter is strictly prohibited unless explicitly specified by the user
+- `timeout_secs` (int): Timeout in seconds for gemini execution (1-3600). Defaults to `GEMINI_DEFAULT_TIMEOUT` environment variable or 600 seconds (10 minutes)
 
 ### Return Structure
 
@@ -167,6 +168,14 @@ The server provides a single `gemini` tool with the following parameters:
   **Example:**
   ```bash
   export GEMINI_BIN=/usr/local/bin/gemini-custom
+  cargo run
+  ```
+
+- `GEMINI_DEFAULT_TIMEOUT`: Default timeout in seconds for gemini execution (1-3600). If not set, defaults to 600 seconds (10 minutes). This can be overridden per-request using the `timeout_secs` parameter.
+
+  **Example:**
+  ```bash
+  export GEMINI_DEFAULT_TIMEOUT=300  # 5 minutes
   cargo run
   ```
 

@@ -1,4 +1,4 @@
-use crate::gemini::{self, Options};
+use crate::gemini::{self, Options, MAX_TIMEOUT_SECS, MIN_TIMEOUT_SECS};
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::*,
@@ -24,7 +24,8 @@ pub struct GeminiArgs {
     /// The model to use for the gemini session. If not specified, uses the default model configured in Gemini CLI
     #[serde(default)]
     pub model: Option<String>,
-    /// Timeout in seconds for gemini execution. Default: 600 (10 minutes)
+    /// Timeout in seconds for gemini execution (1-3600). If not specified, uses GEMINI_DEFAULT_TIMEOUT
+    /// environment variable or falls back to 600 seconds (10 minutes).
     #[serde(default)]
     pub timeout_secs: Option<u64>,
 }
@@ -90,9 +91,12 @@ impl GeminiServer {
 
         // Validate timeout_secs if provided
         if let Some(timeout) = args.timeout_secs {
-            if timeout == 0 || timeout > 3600 {
+            if !(MIN_TIMEOUT_SECS..=MAX_TIMEOUT_SECS).contains(&timeout) {
                 return Err(McpError::invalid_params(
-                    "timeout_secs must be between 1 and 3600 seconds (1 hour)",
+                    format!(
+                        "timeout_secs must be between {} and {} seconds",
+                        MIN_TIMEOUT_SECS, MAX_TIMEOUT_SECS
+                    ),
                     None,
                 ));
             }
