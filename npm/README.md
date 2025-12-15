@@ -60,13 +60,14 @@ The server provides a `gemini` tool with the following parameters:
 - **sandbox**: Run in sandbox mode (default: false)
 - **SESSION_ID**: Resume previous session
 - **return_all_messages**: Return full reasoning trace
-- **model**: Override Gemini model
+- **model**: Override Gemini model (default: GEMINI_FORCE_MODEL or Gemini CLI default)
 - **timeout_secs**: Timeout in seconds (1-3600, default: GEMINI_DEFAULT_TIMEOUT or 600)
 
 ## Environment Variables
 
 - **GEMINI_BIN**: Override the Gemini CLI binary path (default: 'gemini')
 - **GEMINI_DEFAULT_TIMEOUT**: Default timeout in seconds (1-3600, default: 600)
+- **GEMINI_FORCE_MODEL**: Default model when request omits 'model' parameter
 
 ## Documentation
 

@@ -21,7 +21,8 @@ pub struct GeminiArgs {
     /// Return all messages (e.g. reasoning, tool calls, etc.) from the gemini session. Set to `False` by default, only the agent's final reply message is returned
     #[serde(default)]
     pub return_all_messages: bool,
-    /// The model to use for the gemini session. If not specified, uses the default model configured in Gemini CLI
+    /// The model to use for the gemini session. If not specified, uses GEMINI_FORCE_MODEL
+    /// environment variable or the Gemini CLI default
     #[serde(default)]
     pub model: Option<String>,
     /// Timeout in seconds for gemini execution (1-3600). If not specified, uses GEMINI_DEFAULT_TIMEOUT
@@ -81,9 +82,9 @@ impl GeminiServer {
         }
 
         if let Some(ref model) = args.model {
-            if model.is_empty() {
+            if model.trim().is_empty() {
                 return Err(McpError::invalid_params(
-                    "Model overrides must be explicitly requested as a non-empty string",
+                    "Model overrides must be explicitly requested as a non-empty, non-whitespace string",
                     None,
                 ));
             }
@@ -105,8 +106,8 @@ impl GeminiServer {
         // Convert empty string session_id to None
         let session_id = args.session_id.filter(|s| !s.is_empty());
 
-        // Convert empty string model to None
-        let model = args.model.filter(|m| !m.is_empty());
+        // Convert empty/whitespace string model to None
+        let model = args.model.filter(|m| !m.trim().is_empty());
 
         // Create options for gemini client
         let opts = Options {

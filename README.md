@@ -117,7 +117,7 @@ The server provides a single `gemini` tool with the following parameters:
 - `sandbox` (bool): Run in sandbox mode. Defaults to `False`
 - `SESSION_ID` (string): Resume the specified session of the gemini. Defaults to empty string, start a new session
 - `return_all_messages` (bool): Return all messages (e.g. reasoning, tool calls, etc.) from the gemini session. Set to `False` by default, only the agent's final reply message is returned
-- `model` (string): The model to use for the gemini session. This parameter is strictly prohibited unless explicitly specified by the user
+- `model` (string): The model to use for the gemini session. If not specified, uses `GEMINI_FORCE_MODEL` environment variable or the Gemini CLI default
 - `timeout_secs` (int): Timeout in seconds for gemini execution (1-3600). Defaults to `GEMINI_DEFAULT_TIMEOUT` environment variable or 600 seconds (10 minutes)
 
 ### Return Structure
@@ -176,6 +176,14 @@ The server provides a single `gemini` tool with the following parameters:
   **Example:**
   ```bash
   export GEMINI_DEFAULT_TIMEOUT=300  # 5 minutes
+  cargo run
+  ```
+
+- `GEMINI_FORCE_MODEL`: Default model to use when no `model` parameter is provided in the request. This is overridden by explicit `model` parameters.
+
+  **Example:**
+  ```bash
+  export GEMINI_FORCE_MODEL=gemini-2.0-flash
   cargo run
   ```
 

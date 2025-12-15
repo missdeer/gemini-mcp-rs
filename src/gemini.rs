@@ -19,6 +19,7 @@ const DEFAULT_TIMEOUT_SECS: u64 = 600; // 10 minutes
 pub(crate) const MIN_TIMEOUT_SECS: u64 = 1;
 pub(crate) const MAX_TIMEOUT_SECS: u64 = 3600; // 1 hour
 const ENV_DEFAULT_TIMEOUT: &str = "GEMINI_DEFAULT_TIMEOUT";
+const ENV_FORCE_MODEL: &str = "GEMINI_FORCE_MODEL";
 const MAX_MESSAGES_LIMIT: usize = 10000; // Maximum number of messages to store
 const MAX_NON_JSON_LINES: usize = 1000; // Maximum non-JSON lines to store
 const MAX_STDERR_BYTES: usize = 100_000; // Maximum stderr output to capture (100KB)
@@ -30,6 +31,14 @@ fn get_default_timeout() -> u64 {
         .and_then(|v| v.trim().parse::<u64>().ok())
         .filter(|&t| (MIN_TIMEOUT_SECS..=MAX_TIMEOUT_SECS).contains(&t))
         .unwrap_or(DEFAULT_TIMEOUT_SECS)
+}
+
+/// Get the force model from environment variable, if set
+fn get_force_model() -> Option<String> {
+    std::env::var(ENV_FORCE_MODEL)
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
 }
 
 #[derive(Debug, Clone)]
@@ -123,7 +132,15 @@ fn build_command(opts: &Options) -> Command {
     if opts.sandbox {
         cmd.arg("--sandbox");
     }
-    if let Some(ref model) = opts.model {
+    // Use model from options (normalized: trim + empty→None), or fall back to GEMINI_FORCE_MODEL env var
+    let model = opts
+        .model
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(String::from)
+        .or_else(get_force_model);
+    if let Some(ref model) = model {
         cmd.args(["--model", model]);
     }
     if let Some(ref session_id) = opts.session_id {
@@ -664,5 +681,152 @@ mod tests {
                 "Should not fail on timeout validation"
             );
         }
+    }
+
+    // Note: This test covers all GEMINI_FORCE_MODEL env var scenarios in a single test
+    // to avoid race conditions when tests run in parallel (env vars are process-global state)
+    #[test]
+    fn test_force_model_env_var_and_build_command() {
+        // Save and restore the original env var value using RAII guard
+        let _guard = EnvVarGuard::new(ENV_FORCE_MODEL);
+
+        // === Part 1: Test get_force_model() function ===
+
+        // Test without env var
+        std::env::remove_var(ENV_FORCE_MODEL);
+        assert_eq!(get_force_model(), None);
+
+        // Test with valid model name
+        std::env::set_var(ENV_FORCE_MODEL, "gemini-2.0-flash");
+        assert_eq!(get_force_model(), Some("gemini-2.0-flash".to_string()));
+
+        // Test with whitespace (should be trimmed)
+        std::env::set_var(ENV_FORCE_MODEL, "  gemini-pro  ");
+        assert_eq!(get_force_model(), Some("gemini-pro".to_string()));
+
+        // Test with empty string (should return None)
+        std::env::set_var(ENV_FORCE_MODEL, "");
+        assert_eq!(get_force_model(), None);
+
+        // Test with only whitespace (should return None after trimming)
+        std::env::set_var(ENV_FORCE_MODEL, "   ");
+        assert_eq!(get_force_model(), None);
+
+        // Test with tabs and newlines (should be trimmed)
+        std::env::set_var(ENV_FORCE_MODEL, "\t\ngemini-flash\n\t");
+        assert_eq!(get_force_model(), Some("gemini-flash".to_string()));
+
+        // === Part 2: Test build_command() with force model scenarios ===
+
+        // Scenario 1: No model in options, no env var - should NOT have --model flag
+        std::env::remove_var(ENV_FORCE_MODEL);
+        let opts_no_model = Options {
+            prompt: "test prompt".to_string(),
+            sandbox: false,
+            session_id: None,
+            return_all_messages: false,
+            model: None,
+            timeout_secs: None,
+        };
+        let cmd = build_command(&opts_no_model);
+        let args: Vec<_> = cmd.as_std().get_args().collect();
+        assert!(
+            !args.iter().any(|a| *a == "--model"),
+            "Scenario 1: Should NOT have --model flag when no model specified and no env var"
+        );
+
+        // Scenario 2: No model in options, env var set - should use env var
+        std::env::set_var(ENV_FORCE_MODEL, "gemini-2.0-flash");
+        let opts_with_env = Options {
+            prompt: "test prompt".to_string(),
+            sandbox: false,
+            session_id: None,
+            return_all_messages: false,
+            model: None,
+            timeout_secs: None,
+        };
+        let cmd = build_command(&opts_with_env);
+        let args: Vec<_> = cmd.as_std().get_args().collect();
+        assert!(
+            args.iter().any(|a| *a == "--model"),
+            "Scenario 2: Should have --model flag from env var"
+        );
+        assert!(
+            args.iter().any(|a| *a == "gemini-2.0-flash"),
+            "Scenario 2: Should have model value from env var"
+        );
+
+        // Scenario 3: Model in options, env var set - should use option, not env var
+        let opts_explicit = Options {
+            prompt: "test prompt".to_string(),
+            sandbox: false,
+            session_id: None,
+            return_all_messages: false,
+            model: Some("gemini-pro".to_string()),
+            timeout_secs: None,
+        };
+        let cmd = build_command(&opts_explicit);
+        let args: Vec<_> = cmd.as_std().get_args().collect();
+        assert!(
+            args.iter().any(|a| *a == "gemini-pro"),
+            "Scenario 3: Should use explicit model from options"
+        );
+        assert!(
+            !args.iter().any(|a| *a == "gemini-2.0-flash"),
+            "Scenario 3: Should NOT use model from env var when option is provided"
+        );
+
+        // Scenario 4: Whitespace-only model in options, env var set - should use env var
+        // (whitespace treated as None - defensive normalization for internal use)
+        let opts_whitespace = Options {
+            prompt: "test prompt".to_string(),
+            sandbox: false,
+            session_id: None,
+            return_all_messages: false,
+            model: Some("   ".to_string()),
+            timeout_secs: None,
+        };
+        let cmd = build_command(&opts_whitespace);
+        let args: Vec<_> = cmd.as_std().get_args().collect();
+        assert!(
+            args.iter().any(|a| *a == "gemini-2.0-flash"),
+            "Scenario 4: Whitespace-only model should fall back to env var"
+        );
+
+        // Scenario 5: Empty model in options, env var set - should use env var
+        let opts_empty = Options {
+            prompt: "test prompt".to_string(),
+            sandbox: false,
+            session_id: None,
+            return_all_messages: false,
+            model: Some("".to_string()),
+            timeout_secs: None,
+        };
+        let cmd = build_command(&opts_empty);
+        let args: Vec<_> = cmd.as_std().get_args().collect();
+        assert!(
+            args.iter().any(|a| *a == "gemini-2.0-flash"),
+            "Scenario 5: Empty model should fall back to env var"
+        );
+
+        // Scenario 6: Model with leading/trailing whitespace, env var set - should use trimmed model
+        let opts_with_whitespace = Options {
+            prompt: "test prompt".to_string(),
+            sandbox: false,
+            session_id: None,
+            return_all_messages: false,
+            model: Some("  gemini-ultra  ".to_string()),
+            timeout_secs: None,
+        };
+        let cmd = build_command(&opts_with_whitespace);
+        let args: Vec<_> = cmd.as_std().get_args().collect();
+        assert!(
+            args.iter().any(|a| *a == "gemini-ultra"),
+            "Scenario 6: Should use trimmed model from options"
+        );
+        assert!(
+            !args.iter().any(|a| *a == "gemini-2.0-flash"),
+            "Scenario 6: Should NOT use env var when valid trimmed model in options"
+        );
     }
 }
