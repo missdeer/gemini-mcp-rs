@@ -121,6 +121,7 @@ fn build_command(opts: &Options) -> Command {
     let gemini_bin = std::env::var("GEMINI_BIN").unwrap_or_else(|_| "gemini".to_string());
 
     let mut cmd = Command::new(gemini_bin);
+    cmd.arg("-y");
     cmd.arg("--prompt");
     // Command::arg() on all platforms already does correct shell quoting,
     // so we pass the prompt as-is without manual escaping
