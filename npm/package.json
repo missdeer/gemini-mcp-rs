@@ -4,10 +4,7 @@
   "mcpName": "io.github.missdeer/gemini-mcp-rs",
   "description": "NPM wrapper for gemini-mcp-rs - Rust implementation of Gemini MCP server",
   "bin": {
-    "gemini-mcp-rs": "bin.js"
-  },
-  "scripts": {
-    "postinstall": "node install.js"
+    "gemini-mcp-rs": "run.js"
   },
   "repository": {
     "type": "git",
@@ -22,11 +19,6 @@
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
-  },
-  "dependencies": {
-    "axios": "^1.7.9",
-    "tar": "^7.4.3",
-    "unzipper": "^0.12.3"
   }
 }
 

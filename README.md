@@ -67,7 +67,27 @@ The `--help` flag provides comprehensive documentation including:
 
 ## Installation
 
-### Option 1: Quick Install (Linux/macOS)
+### Option 1: NPX (Recommended)
+
+Run directly without installation using npx:
+
+```bash
+npx @missdeer/gemini-mcp-rs
+```
+
+Or install globally:
+
+```bash
+npm install -g @missdeer/gemini-mcp-rs
+```
+
+Then add to your Claude MCP configuration:
+
+```bash
+claude mcp add gemini-rs -s user --transport stdio -- npx @missdeer/gemini-mcp-rs
+```
+
+### Option 2: Quick Install (Linux/macOS)
 
 Install the latest release with a single command:
 
@@ -87,7 +107,7 @@ This script will:
 - Install it to `~/.local/bin` (or `/usr/local/bin` if needed)
 - Automatically add it to your Claude MCP configuration
 
-### Option 2: Build from Source
+### Option 3: Build from Source
 
 ```bash
 git clone https://github.com/missdeer/gemini-mcp-rs.git
@@ -96,7 +116,7 @@ cargo build --release
 claude mcp add gemini-rs -s user --transport stdio -- $(pwd)/target/release/gemini-mcp-rs
 ```
 
-### Option 3: Install from Release
+### Option 4: Install from Release
 
 Download the appropriate binary for your platform from the releases page, extract it, and add to your MCP configuration:
 
