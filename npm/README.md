@@ -5,7 +5,23 @@
 
 NPM package for **gemini-mcp-rs** - A high-performance Rust implementation of MCP (Model Context Protocol) server that wraps the Gemini CLI.
 
-## Installation
+## Quick Start
+
+Run directly without installation:
+
+```bash
+npx @missdeer/gemini-mcp-rs
+```
+
+Add to Claude Code in one command:
+
+```bash
+claude mcp add gemini-rs -s user --transport stdio -- npx @missdeer/gemini-mcp-rs
+```
+
+## Installation (Optional)
+
+For frequent use, install globally:
 
 ```bash
 npm install -g @missdeer/gemini-mcp-rs
@@ -13,9 +29,7 @@ npm install -g @missdeer/gemini-mcp-rs
 
 This will automatically download and install the appropriate binary for your platform (Linux, macOS, or Windows).
 
-## Usage with Claude Code
-
-After installation, add to your Claude Code MCP configuration:
+Then add to Claude Code:
 
 ```bash
 claude mcp add gemini-rs -s user --transport stdio -- gemini-mcp-rs

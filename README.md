@@ -8,6 +8,22 @@ A high-performance Rust implementation of MCP (Model Context Protocol) server th
 
 > **Note**: This is a Rust port of the original Python implementation [geminimcp](../geminimcp). It offers the same functionality with improved performance and lower resource usage.
 
+## Quick Start
+
+The easiest way to use gemini-mcp-rs is via npx - no manual installation required:
+
+```bash
+npx @missdeer/gemini-mcp-rs
+```
+
+This command automatically downloads the appropriate binary for your platform and runs it. To add it to Claude Code:
+
+```bash
+claude mcp add gemini-rs -s user --transport stdio -- npx @missdeer/gemini-mcp-rs
+```
+
+That's it! The MCP server is now available in Claude Code.
+
 ## Features
 
 - **MCP Protocol Support**: Implements the official Model Context Protocol using the Rust SDK
