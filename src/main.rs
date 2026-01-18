@@ -1,7 +1,8 @@
 use anyhow::Result;
 use clap::Parser;
 use gemini_mcp_rs::server::GeminiServer;
-use rmcp::{transport::stdio, ServiceExt};
+use gemini_mcp_rs::transport::AdaptiveStdio;
+use rmcp::ServiceExt;
 
 /// MCP server wrapping the Gemini CLI for AI-driven tasks
 #[derive(Parser)]
@@ -72,10 +73,14 @@ async fn main() -> Result<()> {
     // Parse command-line arguments (this will handle -h/--help and --version)
     let _cli = Cli::parse();
 
-    // Create an instance of our gemini server
-    let service = GeminiServer::new().serve(stdio()).await.inspect_err(|e| {
-        eprintln!("serving error: {:?}", e);
-    })?;
+    // Create an instance of our gemini server with adaptive transport
+    // that auto-detects between JSONL and LSP-style message framing
+    let service = GeminiServer::new()
+        .serve(AdaptiveStdio::new())
+        .await
+        .inspect_err(|e| {
+            eprintln!("serving error: {:?}", e);
+        })?;
 
     service.waiting().await?;
     Ok(())
