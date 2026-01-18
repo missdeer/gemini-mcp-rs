@@ -1,6 +1,6 @@
 [package]
 name = "gemini-mcp-rs"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 authors = ["missdeer"]
 description = "MCP server wrapping the Gemini CLI in Rust"
