@@ -7,12 +7,8 @@
     "gemini-mcp-rs": "run.js"
   },
   "files": [
-    "run.js",
-    "install.js"
+    "run.js"
   ],
-  "scripts": {
-    "postinstall": "node install.js"
-  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/missdeer/gemini-mcp-rs.git"
@@ -27,7 +23,7 @@
     "access": "public",
     "registry": "https://registry.npmjs.org/"
   },
-  "dependencies": {
+  "optionalDependencies": {
     "https-proxy-agent": "^7.0.4"
   }
 }
