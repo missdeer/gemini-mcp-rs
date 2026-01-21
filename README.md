@@ -1,7 +1,7 @@
 # gemini-mcp-rs
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Rust Version](https://img.shields.io/badge/rust-1.70%2B-blue.svg)](https://www.rust-lang.org)
+[![Rust Version](https://img.shields.io/badge/rust-1.77.2%2B-blue.svg)](https://www.rust-lang.org)
 [![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io)
 
 A high-performance Rust implementation of MCP (Model Context Protocol) server that wraps the Gemini CLI for AI-driven tasks.
@@ -35,7 +35,7 @@ That's it! The MCP server is now available in Claude Code.
 
 ## Prerequisites
 
-- Rust 1.90+ (uses 2021 edition)
+- Rust 1.77.2+ (required for Windows batch file security fix, see [CVE-2024-24576](https://blog.rust-lang.org/2024/04/09/cve-2024-24576.html))
 - [Gemini CLI](https://github.com/google-gemini/gemini-cli) installed and configured
 - Claude Code or another MCP client
 

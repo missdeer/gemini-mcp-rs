@@ -19,3 +19,6 @@ Thumbs.db
 *.tar.gz
 *.zip
 
+# Claude Code session config
+.ccb_config/
+

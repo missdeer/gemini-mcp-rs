@@ -118,13 +118,39 @@ fn process_json_line(line_data: &Value, result: &mut GeminiResult, return_all_me
 
 /// Build the gemini command with the given options
 fn build_command(opts: &Options) -> Command {
-    let gemini_bin = std::env::var("GEMINI_BIN").unwrap_or_else(|_| "gemini".to_string());
+    let gemini_bin = std::env::var("GEMINI_BIN").unwrap_or_else(|_| {
+        if cfg!(windows) {
+            "gemini.cmd".to_string()
+        } else {
+            "gemini".to_string()
+        }
+    });
 
-    let mut cmd = Command::new(gemini_bin);
+    // On Windows, .cmd/.bat files must be run through cmd.exe.
+    // We use %ComSpec% to locate cmd.exe reliably.
+    // Flags: /D disables AutoRun, /S improves quote handling.
+    #[cfg(windows)]
+    let mut cmd = {
+        let lower = gemini_bin.to_ascii_lowercase();
+        let needs_cmd = lower.ends_with(".cmd") || lower.ends_with(".bat");
+        if needs_cmd {
+            let comspec = std::env::var("ComSpec").unwrap_or_else(|_| "cmd.exe".to_string());
+            let mut c = Command::new(comspec);
+            c.arg("/d"); // Disable AutoRun registry commands
+            c.arg("/s"); // Strip outer quotes for reliable argument passing
+            c.arg("/c");
+            c.arg(&gemini_bin);
+            c
+        } else {
+            Command::new(&gemini_bin)
+        }
+    };
+
+    #[cfg(not(windows))]
+    let mut cmd = Command::new(&gemini_bin);
+
     cmd.arg("-y");
     cmd.arg("--prompt");
-    // Command::arg() on all platforms already does correct shell quoting,
-    // so we pass the prompt as-is without manual escaping
     cmd.arg(&opts.prompt);
     cmd.arg("-o");
     cmd.arg("stream-json");
@@ -133,6 +159,7 @@ fn build_command(opts: &Options) -> Command {
     if opts.sandbox {
         cmd.arg("--sandbox");
     }
+
     // Use model from options (normalized: trim + empty→None), or fall back to GEMINI_FORCE_MODEL env var
     let model = opts
         .model
@@ -141,9 +168,11 @@ fn build_command(opts: &Options) -> Command {
         .filter(|s| !s.is_empty())
         .map(String::from)
         .or_else(get_force_model);
-    if let Some(ref model) = model {
-        cmd.args(["--model", model]);
+
+    if let Some(ref model_val) = model {
+        cmd.args(["--model", model_val]);
     }
+
     if let Some(ref session_id) = opts.session_id {
         cmd.args(["--resume", session_id]);
     }
@@ -468,8 +497,23 @@ mod tests {
         let cmd = build_command(&opts);
         let program = cmd.as_std().get_program();
 
-        // Should use "gemini" as the binary name (or GEMINI_BIN env var)
-        assert!(program == "gemini" || program.to_string_lossy().contains("gemini"));
+        // On Windows with .cmd, should use cmd.exe (via ComSpec) with /d /s /c flags
+        // On other platforms, directly use "gemini"
+        if cfg!(windows) {
+            // Program could be cmd.exe or value from ComSpec
+            let program_str = program.to_string_lossy();
+            assert!(
+                program_str.to_ascii_lowercase().contains("cmd"),
+                "Should use cmd.exe on Windows"
+            );
+            let args: Vec<_> = cmd.as_std().get_args().collect();
+            assert!(args.iter().any(|a| *a == "/d"), "Should have /d flag");
+            assert!(args.iter().any(|a| *a == "/s"), "Should have /s flag");
+            assert!(args.iter().any(|a| *a == "/c"), "Should have /c flag");
+            assert!(args.iter().any(|a| a.to_string_lossy().contains("gemini")));
+        } else {
+            assert!(program == "gemini" || program.to_string_lossy().contains("gemini"));
+        }
     }
 
     #[test]
@@ -486,8 +530,12 @@ mod tests {
         let cmd = build_command(&opts);
         let program = cmd.as_std().get_program();
 
-        // Should use "gemini" as the binary name
-        assert!(program == "gemini" || program.to_string_lossy().contains("gemini"));
+        // On Windows, should use "cmd.exe", on other platforms "gemini"
+        if cfg!(windows) {
+            assert_eq!(program, "cmd.exe");
+        } else {
+            assert!(program == "gemini" || program.to_string_lossy().contains("gemini"));
+        }
     }
 
     #[test]
@@ -504,7 +552,12 @@ mod tests {
         let cmd = build_command(&opts);
         let program = cmd.as_std().get_program();
 
-        assert!(program == "gemini" || program.to_string_lossy().contains("gemini"));
+        // On Windows, should use "cmd.exe", on other platforms "gemini"
+        if cfg!(windows) {
+            assert_eq!(program, "cmd.exe");
+        } else {
+            assert!(program == "gemini" || program.to_string_lossy().contains("gemini"));
+        }
     }
 
     /// RAII guard to restore environment variable on drop

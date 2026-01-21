@@ -103,12 +103,38 @@ jobs:
         with:
           path: artifacts
 
+      - name: Generate SHA256 checksums
+        run: |
+          cd artifacts
+          # Create JSON checksum file
+          echo "{" > sha256sum.json
+          first=true
+          for file in */*; do
+            if [ -f "$file" ]; then
+              filename=$(basename "$file")
+              hash=$(sha256sum "$file" | cut -d' ' -f1)
+              if [ "$first" = true ]; then
+                first=false
+              else
+                echo "," >> sha256sum.json
+              fi
+              printf '  "%s": "%s"' "$filename" "$hash" >> sha256sum.json
+            fi
+          done
+          echo "" >> sha256sum.json
+          echo "}" >> sha256sum.json
+          # Move to artifacts root for upload
+          mv sha256sum.json ../sha256sum.json
+          cat ../sha256sum.json
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           draft: false
           prerelease: false
-          files: artifacts/**/*
+          files: |
+            artifacts/**/*
+            sha256sum.json
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}

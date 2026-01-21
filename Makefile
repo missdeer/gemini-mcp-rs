@@ -1,4 +1,4 @@
-.PHONY: help build build-release test fmt clippy clean install check-version
+.PHONY: help build build-release test fmt clippy clean install uninstall check-version
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -42,9 +42,18 @@ clean: ## Clean build artifacts
 	rm -f npm/*.tgz npm/*.tar.gz npm/*.zip
 	rm -f npm/gemini-mcp-rs npm/gemini-mcp-rs.exe
 
-install: build-release ## Install to system (requires sudo on Unix)
-	@echo "Installing gemini-mcp-rs..."
-	@cp target/release/gemini-mcp-rs /usr/local/bin/ || echo "Failed. Try: sudo make install"
+PREFIX ?= /usr/local
+DESTDIR ?=
+
+install: build-release ## Install binary to $(DESTDIR)$(PREFIX)/bin
+	@mkdir -p $(DESTDIR)$(PREFIX)/bin
+	@cp target/release/gemini-mcp-rs $(DESTDIR)$(PREFIX)/bin/gemini-mcp-rs
+	@chmod 755 $(DESTDIR)$(PREFIX)/bin/gemini-mcp-rs
+	@echo "Installed gemini-mcp-rs to $(DESTDIR)$(PREFIX)/bin"
+
+uninstall: ## Uninstall binary from $(DESTDIR)$(PREFIX)/bin
+	@rm -f $(DESTDIR)$(PREFIX)/bin/gemini-mcp-rs
+	@echo "Uninstalled gemini-mcp-rs from $(DESTDIR)$(PREFIX)/bin"
 
 check-version: ## Check version consistency across files
 	@bash scripts/check-version.sh
