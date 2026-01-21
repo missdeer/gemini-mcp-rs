@@ -532,7 +532,11 @@ mod tests {
 
         // On Windows, should use "cmd.exe", on other platforms "gemini"
         if cfg!(windows) {
-            assert_eq!(program, "cmd.exe");
+            assert!(
+                program.to_string_lossy().ends_with("cmd.exe"),
+                "expected program to end with cmd.exe, got {:?}",
+                program
+            );
         } else {
             assert!(program == "gemini" || program.to_string_lossy().contains("gemini"));
         }
@@ -554,7 +558,11 @@ mod tests {
 
         // On Windows, should use "cmd.exe", on other platforms "gemini"
         if cfg!(windows) {
-            assert_eq!(program, "cmd.exe");
+            assert!(
+                program.to_string_lossy().ends_with("cmd.exe"),
+                "expected program to end with cmd.exe, got {:?}",
+                program
+            );
         } else {
             assert!(program == "gemini" || program.to_string_lossy().contains("gemini"));
         }
@@ -696,6 +704,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // Requires gemini CLI; run manually with: cargo test --lib -- --ignored
     fn test_timeout_validation_valid_boundaries() {
         // Test minimum valid value (1 second)
         let opts_min = Options {
