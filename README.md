@@ -281,3 +281,7 @@ This includes but is not limited to:
 
 See [LICENSE-COMMERCIAL](LICENSE-COMMERCIAL) for more details.
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=missdeer/gemini-mcp-rs&type=Date)](https://starchart.cc/missdeer/gemini-mcp-rs)
+

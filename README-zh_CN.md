@@ -280,3 +280,7 @@ GEMINI_BIN=/path/to/gemini cargo test
 **联系方式**：missdeer@gmail.com 咨询商业许可。
 
 更多详情请参见 [LICENSE-COMMERCIAL](LICENSE-COMMERCIAL)。
+
+## Star 历史
+
+[![Star History Chart](https://api.star-history.com/svg?repos=missdeer/gemini-mcp-rs&type=Date)](https://starchart.cc/missdeer/gemini-mcp-rs)
