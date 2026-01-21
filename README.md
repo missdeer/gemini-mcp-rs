@@ -31,7 +31,7 @@ That's it! The MCP server is now available in Claude Code.
 - **Session Management**: Supports multi-turn conversations via session IDs
 - **Sandbox Safety**: Configurable sandbox mode for isolated execution
 - **Async Runtime**: Built on Tokio for efficient async I/O
-- **Cross-platform**: Works on Windows, Linux, and macOS
+- **Cross-platform**: Works on Windows, Linux, and macOS (x64 and arm64)
 
 ## Prerequisites
 
@@ -134,7 +134,17 @@ claude mcp add gemini-rs -s user --transport stdio -- $(pwd)/target/release/gemi
 
 ### Option 4: Install from Release
 
-Download the appropriate binary for your platform from the releases page, extract it, and add to your MCP configuration:
+Download the appropriate binary for your platform from the [releases page](https://github.com/missdeer/gemini-mcp-rs/releases):
+
+| Platform | Architecture | Asset |
+|----------|--------------|-------|
+| Linux | x64 | `gemini-mcp-rs_Linux_x86_64.tar.gz` |
+| Linux | arm64 | `gemini-mcp-rs_Linux_arm64.tar.gz` |
+| macOS | Universal (x64 + arm64) | `gemini-mcp-rs_Darwin_universal.tar.gz` |
+| Windows | x64 | `gemini-mcp-rs_Windows_x86_64.zip` |
+| Windows | arm64 | `gemini-mcp-rs_Windows_arm64.zip` |
+
+Extract and add to your MCP configuration:
 
 ```bash
 claude mcp add gemini-rs -s user --transport stdio -- /path/to/gemini-mcp-rs
