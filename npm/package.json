@@ -1,6 +1,6 @@
 {
   "name": "@missdeer/gemini-mcp-rs",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "mcpName": "io.github.missdeer/gemini-mcp-rs",
   "description": "NPM wrapper for gemini-mcp-rs - Rust implementation of Gemini MCP server",
   "bin": {
