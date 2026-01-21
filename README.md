@@ -1,12 +1,12 @@
 # gemini-mcp-rs
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Rust Version](https://img.shields.io/badge/rust-1.77.2%2B-blue.svg)](https://www.rust-lang.org)
 [![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io)
 
-A high-performance Rust implementation of MCP (Model Context Protocol) server that wraps the Gemini CLI for AI-driven tasks.
+[中文文档](README-zh_CN.md)
 
-> **Note**: This is a Rust port of the original Python implementation [geminimcp](../geminimcp). It offers the same functionality with improved performance and lower resource usage.
+A high-performance Rust implementation of MCP (Model Context Protocol) server that wraps the Gemini CLI for AI-driven tasks.
 
 ## Quick Start
 
@@ -255,30 +255,29 @@ The project follows a modular architecture:
 - `src/server.rs`: MCP server implementation and tool handlers
 - `src/gemini.rs`: Gemini CLI execution and result parsing
 
-## Comparison with Python Implementation
-
-| Feature | gemini-mcp-rs (Rust) | geminimcp (Python) |
-|---------|---------------------|-------------------|
-| Language | Rust | Python |
-| Performance | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
-| Memory Usage | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
-| Binary Size | Medium | N/A |
-| Startup Time | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
-| Session Management | ✓ | ✓ |
-| Sandbox Support | ✓ | ✓ |
-
-## Related Projects
-
-- [geminimcp](https://github.com/GuDaStudio/geminimcp) - Original Python implementation
-- [codex-mcp-rs](https://github.com/missdeer/codex-mcp-rs) - Rust MCP server for Codex CLI
-
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-MIT License - Copyright (c) 2025 missdeer
+This project is dual-licensed:
 
-See [LICENSE](./LICENSE) for details.
+### Non-Commercial / Personal Use - GNU General Public License v3.0
+
+Free for personal projects, educational purposes, open source projects, and non-commercial use. See [LICENSE](LICENSE) for the full GPLv3 license text.
+
+### Commercial / Workplace Use - Commercial License Required
+
+**If you use gemini-mcp-rs in a commercial environment, workplace, or for any commercial purpose, you must obtain a commercial license.**
+
+This includes but is not limited to:
+- Using the software at work (any organization)
+- Integrating into commercial products or services
+- Using for client work or consulting
+- Offering as part of a SaaS/cloud service
+
+**Contact**: missdeer@gmail.com for commercial licensing inquiries.
+
+See [LICENSE-COMMERCIAL](LICENSE-COMMERCIAL) for more details.
 

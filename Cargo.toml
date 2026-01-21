@@ -5,7 +5,7 @@ edition = "2021"
 rust-version = "1.77.2"
 authors = ["missdeer"]
 description = "MCP server wrapping the Gemini CLI in Rust"
-license = "MIT"
+license = "GPL-3.0-or-later"
 repository = "https://github.com/missdeer/gemini-mcp-rs"
 
 [dependencies]
