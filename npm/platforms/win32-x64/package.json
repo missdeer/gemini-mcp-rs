@@ -1,0 +1,17 @@
+{
+  "name": "@gemini-mcp-rs/win32-x64",
+  "version": "0.1.5",
+  "description": "Platform-specific binary for gemini-mcp-rs (Windows x64)",
+  "license": "GPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/missdeer/gemini-mcp-rs.git"
+  },
+  "os": ["win32"],
+  "cpu": ["x64"],
+  "files": ["bin/gemini-mcp-rs.exe", "LICENSE", "README.md"],
+  "preferUnplugged": true,
+  "publishConfig": {
+    "access": "public"
+  }
+}

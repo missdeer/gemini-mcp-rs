@@ -38,9 +38,10 @@ clippy: ## Run clippy linter
 
 clean: ## Clean build artifacts
 	cargo clean
-	rm -rf npm/node_modules
-	rm -f npm/*.tgz npm/*.tar.gz npm/*.zip
-	rm -f npm/gemini-mcp-rs npm/gemini-mcp-rs.exe
+	rm -rf npm/gemini-mcp-rs/node_modules
+	rm -f npm/gemini-mcp-rs/*.tgz npm/gemini-mcp-rs/*.tar.gz npm/gemini-mcp-rs/*.zip
+	rm -rf npm/platforms/*/bin npm/platforms/*/node_modules
+	rm -f npm/platforms/*/*.tgz
 
 PREFIX ?= /usr/local
 DESTDIR ?=
@@ -63,8 +64,8 @@ check: fmt clippy test ## Run all checks (fmt, clippy, test)
 ci: check build-release ## Run all CI checks
 
 npm-pack: build-release ## Pack npm package for testing
-	cd npm && npm pack
+	cd npm/gemini-mcp-rs && npm pack
 
 npm-install: npm-pack ## Install npm package locally for testing
-	npm install -g npm/missdeer-gemini-mcp-rs-*.tgz
+	npm install -g npm/gemini-mcp-rs/missdeer-gemini-mcp-rs-*.tgz
 

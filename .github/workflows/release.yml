@@ -82,7 +82,7 @@ jobs:
 
       - name: Install cross
         if: matrix.use_cross == true
-        run: cargo install cross --git https://github.com/cross-rs/cross
+        run: cargo install cross --version 0.2.5
 
       - name: Build
         if: matrix.build_universal != true && matrix.use_cross != true
@@ -147,29 +147,16 @@ jobs:
         with:
           path: artifacts
 
-      - name: Generate SHA256 checksums
+      - name: Flatten artifacts
         run: |
           cd artifacts
-          # Create JSON checksum file
-          echo "{" > sha256sum.json
-          first=true
-          for file in */*; do
-            if [ -f "$file" ]; then
-              filename=$(basename "$file")
-              hash=$(sha256sum "$file" | cut -d' ' -f1)
-              if [ "$first" = true ]; then
-                first=false
-              else
-                echo "," >> sha256sum.json
-              fi
-              printf '  "%s": "%s"' "$filename" "$hash" >> sha256sum.json
-            fi
-          done
-          echo "" >> sha256sum.json
-          echo "}" >> sha256sum.json
-          # Move to artifacts root for upload
-          mv sha256sum.json ../sha256sum.json
-          cat ../sha256sum.json
+          mkdir -p ../temp_artifacts
+          find . -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec cp {} ../temp_artifacts/ \;
+          rm -rf */
+          mv ../temp_artifacts/* .
+          rmdir ../temp_artifacts
+          sha256sum *.tar.gz *.zip > SHA256SUMS
+          cat SHA256SUMS
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -177,42 +164,121 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            artifacts/**/*
-            sha256sum.json
+            artifacts/*.tar.gz
+            artifacts/*.zip
+            artifacts/SHA256SUMS
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
 
-  publish-npm:
+  publish-npm-platforms:
+    name: Publish ${{ matrix.platform }} to NPM
     needs: create-release
-    runs-on: ubuntu-latest
-    # Only publish to npm when a tag is pushed
     if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      max-parallel: 1
+      matrix:
+        include:
+          - platform: linux-x64
+            asset: gemini-mcp-rs_Linux_x86_64.tar.gz
+            binary: gemini-mcp-rs
+          - platform: linux-arm64
+            asset: gemini-mcp-rs_Linux_arm64.tar.gz
+            binary: gemini-mcp-rs
+          - platform: darwin-universal
+            asset: gemini-mcp-rs_Darwin_universal.tar.gz
+            binary: gemini-mcp-rs
+          - platform: win32-x64
+            asset: gemini-mcp-rs_Windows_x86_64.zip
+            binary: gemini-mcp-rs.exe
+          - platform: win32-arm64
+            asset: gemini-mcp-rs_Windows_arm64.zip
+            binary: gemini-mcp-rs.exe
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "lts/*"
+          node-version: "20"
           registry-url: "https://registry.npmjs.org"
 
-      - name: Extract tag version
-        id: version
-        run: echo "value=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
-
-      - name: Verify package.json version matches tag
+      - name: Verify version consistency
         run: |
-          TAG_VERSION="${{ steps.version.outputs.value }}"
-          PACKAGE_VERSION=$(node -p "require('./npm/package.json').version")
-          if [ "$TAG_VERSION" != "$PACKAGE_VERSION" ]; then
-            echo "Tag version (${TAG_VERSION}) does not match npm/package.json version (${PACKAGE_VERSION})."
+          TAG_VERSION=${GITHUB_REF#refs/tags/v}
+          CARGO_VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          SERVER_VERSION=$(node -p "require('./server.json').version")
+          if [ "$TAG_VERSION" != "$CARGO_VERSION" ] || [ "$TAG_VERSION" != "$SERVER_VERSION" ]; then
+            echo "Version mismatch: tag=$TAG_VERSION, Cargo.toml=$CARGO_VERSION, server.json=$SERVER_VERSION"
             exit 1
           fi
+          echo "Version check passed: $TAG_VERSION"
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: ./downloaded-artifacts
+
+      - name: Extract and prepare package
+        run: |
+          cd npm/platforms/${{ matrix.platform }}
+          mkdir -p bin
+          # Extract binary to bin/
+          if [[ "${{ matrix.asset }}" == *.zip ]]; then
+            unzip $GITHUB_WORKSPACE/downloaded-artifacts/${{ matrix.asset }} -d bin/
+          else
+            tar -xzf $GITHUB_WORKSPACE/downloaded-artifacts/${{ matrix.asset }} -C bin/
+          fi
+          # Copy LICENSE for compliance
+          cp $GITHUB_WORKSPACE/LICENSE .
+          # Make binary executable (for Unix binaries)
+          if [[ "${{ matrix.binary }}" != *.exe ]]; then
+            chmod +x bin/${{ matrix.binary }}
+          fi
+          # Update version from tag
+          VERSION=${GITHUB_REF#refs/tags/v}
+          npm version $VERSION --no-git-tag-version --allow-same-version
 
       - name: Publish to npm
-        run: npm publish --provenance --access public
-        working-directory: npm
+        run: |
+          cd npm/platforms/${{ matrix.platform }}
+          npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-npm:
+    name: Publish main package to NPM
+    needs: publish-npm-platforms
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Update version and publish
+        run: |
+          cd npm/gemini-mcp-rs
+          VERSION=${GITHUB_REF#refs/tags/v}
+          npm version $VERSION --no-git-tag-version --allow-same-version
+          # Sync optionalDependencies versions
+          node -e "
+            const fs = require('fs');
+            const pkg = require('./package.json');
+            for (const dep in pkg.optionalDependencies) {
+              pkg.optionalDependencies[dep] = '$VERSION';
+            }
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+          npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

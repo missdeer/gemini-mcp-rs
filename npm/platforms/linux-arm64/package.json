@@ -1,0 +1,17 @@
+{
+  "name": "@gemini-mcp-rs/linux-arm64",
+  "version": "0.1.5",
+  "description": "Platform-specific binary for gemini-mcp-rs (Linux arm64)",
+  "license": "GPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/missdeer/gemini-mcp-rs.git"
+  },
+  "os": ["linux"],
+  "cpu": ["arm64"],
+  "files": ["bin/gemini-mcp-rs", "LICENSE", "README.md"],
+  "preferUnplugged": true,
+  "publishConfig": {
+    "access": "public"
+  }
+}

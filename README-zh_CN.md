@@ -16,7 +16,7 @@
 npx @missdeer/gemini-mcp-rs
 ```
 
-此命令会自动下载适合您平台的二进制文件并运行。添加到 Claude Code：
+此命令会自动安装适合您平台的二进制文件并运行。添加到 Claude Code：
 
 ```bash
 claude mcp add gemini-rs -s user --transport stdio -- npx @missdeer/gemini-mcp-rs
@@ -85,11 +85,15 @@ cargo run
 
 ### 方式一：NPX（推荐）
 
-使用 npx 直接运行，无需安装：
+使用 npx 直接运行：
 
 ```bash
 npx @missdeer/gemini-mcp-rs
 ```
+
+npx 会自动处理一切：
+1. 安装平台特定的二进制包
+2. 启动 MCP 服务器（stdio 传输）
 
 或全局安装：
 

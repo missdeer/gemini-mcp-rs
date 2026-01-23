@@ -1,0 +1,17 @@
+{
+  "name": "@gemini-mcp-rs/darwin-universal",
+  "version": "0.1.5",
+  "description": "Platform-specific binary for gemini-mcp-rs (macOS Universal)",
+  "license": "GPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/missdeer/gemini-mcp-rs.git"
+  },
+  "os": ["darwin"],
+  "cpu": ["x64", "arm64"],
+  "files": ["bin/gemini-mcp-rs", "LICENSE", "README.md"],
+  "preferUnplugged": true,
+  "publishConfig": {
+    "access": "public"
+  }
+}

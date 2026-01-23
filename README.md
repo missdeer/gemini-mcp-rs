@@ -16,7 +16,7 @@ The easiest way to use gemini-mcp-rs is via npx - no manual installation require
 npx @missdeer/gemini-mcp-rs
 ```
 
-This command automatically downloads the appropriate binary for your platform and runs it. To add it to Claude Code:
+This command automatically installs the correct binary for your platform and runs it. To add it to Claude Code:
 
 ```bash
 claude mcp add gemini-rs -s user --transport stdio -- npx @missdeer/gemini-mcp-rs
@@ -85,11 +85,15 @@ The `--help` flag provides comprehensive documentation including:
 
 ### Option 1: NPX (Recommended)
 
-Run directly without installation using npx:
+Run directly using npx:
 
 ```bash
 npx @missdeer/gemini-mcp-rs
 ```
+
+npx handles everything automatically:
+1. Installs the platform-specific binary package
+2. Launches the MCP server on stdio transport
 
 Or install globally:
 

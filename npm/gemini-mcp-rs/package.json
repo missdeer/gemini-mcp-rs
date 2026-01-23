@@ -1,0 +1,53 @@
+{
+  "name": "@missdeer/gemini-mcp-rs",
+  "version": "0.1.5",
+  "mcpName": "io.github.missdeer/gemini-mcp-rs",
+  "description": "Rust implementation of MCP server that wraps the Gemini CLI",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/missdeer/gemini-mcp-rs.git"
+  },
+  "author": "missdeer",
+  "license": "GPL-3.0-only",
+  "bugs": {
+    "url": "https://github.com/missdeer/gemini-mcp-rs/issues"
+  },
+  "homepage": "https://github.com/missdeer/gemini-mcp-rs#readme",
+  "keywords": [
+    "mcp",
+    "gemini",
+    "cli",
+    "rust",
+    "model-context-protocol"
+  ],
+  "bin": {
+    "gemini-mcp-rs": "run.js"
+  },
+  "files": [
+    "run.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=14.14.0"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
+  "optionalDependencies": {
+    "@gemini-mcp-rs/darwin-universal": "0.1.5",
+    "@gemini-mcp-rs/linux-x64": "0.1.5",
+    "@gemini-mcp-rs/linux-arm64": "0.1.5",
+    "@gemini-mcp-rs/win32-x64": "0.1.5",
+    "@gemini-mcp-rs/win32-arm64": "0.1.5"
+  }
+}
