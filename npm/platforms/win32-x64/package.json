@@ -1,6 +1,6 @@
 {
   "name": "@gemini-mcp-rs/win32-x64",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Platform-specific binary for gemini-mcp-rs (Windows x64)",
   "license": "GPL-3.0-only",
   "repository": {
