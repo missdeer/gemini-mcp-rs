@@ -23,22 +23,72 @@ mod tests {
         // assert!(result.is_ok());
     }
 
-    #[test]
-    fn test_options_validation() {
-        let opts = Options {
-            prompt: "test".to_string(),
-            sandbox: true,
-            session_id: Some("session-123".to_string()),
-            return_all_messages: true,
-            model: Some("gemini-pro".to_string()),
-            timeout_secs: Some(300),
+    /// Regression test: stdin write must be inside the timeout window.
+    /// Uses a 2MB prompt to reliably fill pipe buffers (typ. 4KB-64KB)
+    /// and a non-consuming child (sleeps 60s) to verify that timeout_secs
+    /// bounds total request time including stdin write.
+    #[tokio::test]
+    async fn test_stdin_timeout_under_backpressure() {
+        let temp_dir = std::env::temp_dir();
+        let pid = std::process::id();
+
+        // Create a script that sleeps without reading stdin (unique per process)
+        #[cfg(windows)]
+        let script_path = {
+            let path = temp_dir.join(format!("gemini_test_sleep_{}.cmd", pid));
+            // ping -n 61 ≈ 60s delay; doesn't read stdin
+            std::fs::write(&path, "@echo off\r\nping -n 61 127.0.0.1 >nul\r\n").unwrap();
+            path
         };
 
-        assert_eq!(opts.prompt, "test");
-        assert!(opts.sandbox);
-        assert_eq!(opts.session_id, Some("session-123".to_string()));
-        assert!(opts.return_all_messages);
-        assert_eq!(opts.model, Some("gemini-pro".to_string()));
-        assert_eq!(opts.timeout_secs, Some(300));
+        #[cfg(not(windows))]
+        let script_path = {
+            let path = temp_dir.join(format!("gemini_test_sleep_{}.sh", pid));
+            std::fs::write(&path, "#!/bin/sh\nsleep 60\n").unwrap();
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+            }
+            path
+        };
+
+        std::env::set_var("GEMINI_BIN", script_path.to_str().unwrap());
+
+        let opts = Options {
+            // 2MB prompt: reliably exceeds pipe buffers (4KB-64KB),
+            // forcing write_all to block until child consumes or timeout fires
+            prompt: "a".repeat(2 * 1024 * 1024),
+            sandbox: false,
+            session_id: None,
+            return_all_messages: false,
+            model: None,
+            timeout_secs: Some(2),
+        };
+
+        let start = std::time::Instant::now();
+        let result = gemini_mcp_rs::gemini::run(opts).await;
+        let elapsed = start.elapsed();
+
+        // Clean up
+        std::env::remove_var("GEMINI_BIN");
+        let _ = std::fs::remove_file(&script_path);
+
+        // Must fail with timeout error
+        assert!(result.is_err(), "Expected error, got success");
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("timed out"),
+            "Expected timeout error, got: {}",
+            err_msg
+        );
+
+        // Elapsed time must be bounded: timeout (2s) + cleanup (≤5s) + slack
+        // Must be well under the 60s sleep, proving timeout_secs works
+        assert!(
+            elapsed.as_secs() < 15,
+            "Request took {:?} with timeout_secs=2; timeout is not bounding total time",
+            elapsed
+        );
     }
 }

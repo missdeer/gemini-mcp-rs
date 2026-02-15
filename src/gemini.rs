@@ -2,9 +2,163 @@ use anyhow::{Context, Result};
 use serde_json::Value;
 use std::process::Stdio;
 use std::time::Duration;
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 use tokio::time::timeout;
+
+/// Windows Job Object: assigns a child process to a job configured with
+/// KILL_ON_JOB_CLOSE so that the entire process tree (including grandchildren
+/// spawned by cmd.exe) is terminated when the job handle is closed.
+#[cfg(windows)]
+#[allow(clippy::upper_case_acronyms)]
+mod job_object {
+    use std::ffi::c_void;
+
+    type HANDLE = *mut c_void;
+    type BOOL = i32;
+
+    const JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE: u32 = 0x2000;
+    const JOB_OBJECT_EXTENDED_LIMIT_INFORMATION_CLASS: i32 = 9;
+    const PROCESS_SET_QUOTA: u32 = 0x0100;
+    const PROCESS_TERMINATE: u32 = 0x0001;
+
+    #[repr(C)]
+    struct JOBOBJECT_BASIC_LIMIT_INFORMATION {
+        per_process_user_time_limit: i64,
+        per_job_user_time_limit: i64,
+        limit_flags: u32,
+        minimum_working_set_size: usize,
+        maximum_working_set_size: usize,
+        active_process_limit: u32,
+        affinity: usize,
+        priority_class: u32,
+        scheduling_class: u32,
+    }
+
+    #[repr(C)]
+    struct IO_COUNTERS {
+        read_operations_count: u64,
+        write_operations_count: u64,
+        other_operations_count: u64,
+        read_transfer_count: u64,
+        write_transfer_count: u64,
+        other_transfer_count: u64,
+    }
+
+    #[repr(C)]
+    struct JOBOBJECT_EXTENDED_LIMIT_INFORMATION {
+        basic: JOBOBJECT_BASIC_LIMIT_INFORMATION,
+        io_info: IO_COUNTERS,
+        process_memory_limit: usize,
+        job_memory_limit: usize,
+        peak_process_memory_used: usize,
+        peak_job_memory_used: usize,
+    }
+
+    extern "system" {
+        fn CreateJobObjectW(attributes: *mut c_void, name: *const u16) -> HANDLE;
+        fn OpenProcess(desired_access: u32, inherit_handle: BOOL, pid: u32) -> HANDLE;
+        fn AssignProcessToJobObject(job: HANDLE, process: HANDLE) -> BOOL;
+        fn SetInformationJobObject(job: HANDLE, class: i32, info: *const c_void, len: u32) -> BOOL;
+        fn TerminateJobObject(job: HANDLE, exit_code: u32) -> BOOL;
+        fn CloseHandle(handle: HANDLE) -> BOOL;
+    }
+
+    /// RAII wrapper for a Windows Job Object. Terminates the entire process
+    /// tree when `terminate()` is called or the handle is dropped.
+    pub(super) struct ProcessJob {
+        handle: HANDLE,
+    }
+
+    // Job handle is an opaque kernel handle, safe to send across threads.
+    unsafe impl Send for ProcessJob {}
+    unsafe impl Sync for ProcessJob {}
+
+    impl ProcessJob {
+        /// Create a job and assign the child (by PID) to it.
+        /// Returns None if any Win32 call fails (non-fatal: caller falls
+        /// back to child.kill()).
+        pub(super) fn assign(pid: u32) -> Option<Self> {
+            unsafe {
+                let job = CreateJobObjectW(std::ptr::null_mut(), std::ptr::null());
+                if job.is_null() {
+                    return None;
+                }
+
+                // Configure: kill all processes when job handle closes
+                let info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION {
+                    basic: JOBOBJECT_BASIC_LIMIT_INFORMATION {
+                        per_process_user_time_limit: 0,
+                        per_job_user_time_limit: 0,
+                        limit_flags: JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+                        minimum_working_set_size: 0,
+                        maximum_working_set_size: 0,
+                        active_process_limit: 0,
+                        affinity: 0,
+                        priority_class: 0,
+                        scheduling_class: 0,
+                    },
+                    io_info: IO_COUNTERS {
+                        read_operations_count: 0,
+                        write_operations_count: 0,
+                        other_operations_count: 0,
+                        read_transfer_count: 0,
+                        write_transfer_count: 0,
+                        other_transfer_count: 0,
+                    },
+                    process_memory_limit: 0,
+                    job_memory_limit: 0,
+                    peak_process_memory_used: 0,
+                    peak_job_memory_used: 0,
+                };
+
+                if SetInformationJobObject(
+                    job,
+                    JOB_OBJECT_EXTENDED_LIMIT_INFORMATION_CLASS,
+                    &info as *const _ as *const c_void,
+                    std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+                ) == 0
+                {
+                    CloseHandle(job);
+                    return None;
+                }
+
+                // Open the child process and assign it to the job
+                let process = OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, 0, pid);
+                if process.is_null() {
+                    CloseHandle(job);
+                    return None;
+                }
+
+                let ok = AssignProcessToJobObject(job, process);
+                CloseHandle(process);
+                if ok == 0 {
+                    CloseHandle(job);
+                    return None;
+                }
+
+                Some(ProcessJob { handle: job })
+            }
+        }
+
+        /// Terminate every process in the job immediately.
+        pub(super) fn terminate(&self) {
+            unsafe {
+                TerminateJobObject(self.handle, 1);
+            }
+        }
+    }
+
+    impl Drop for ProcessJob {
+        fn drop(&mut self) {
+            unsafe {
+                // KILL_ON_JOB_CLOSE ensures all remaining processes die
+                // when the last handle is closed.
+                CloseHandle(self.handle);
+            }
+        }
+    }
+}
 
 const PROMPT_DEPRECATION_WARNING: &str = "The --prompt (-p) flag has been deprecated";
 const KEY_SESSION_ID: &str = "session_id";
@@ -150,8 +304,6 @@ fn build_command(opts: &Options) -> Command {
     let mut cmd = Command::new(&gemini_bin);
 
     cmd.arg("-y");
-    cmd.arg("--prompt");
-    cmd.arg(&opts.prompt);
     cmd.arg("-o");
     cmd.arg("stream-json");
 
@@ -177,8 +329,8 @@ fn build_command(opts: &Options) -> Command {
         cmd.args(["--resume", session_id]);
     }
 
-    // Configure process
-    cmd.stdin(Stdio::null());
+    // Configure process: stdin is piped so we can write the prompt
+    cmd.stdin(Stdio::piped());
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
 
@@ -212,17 +364,43 @@ pub async fn run(opts: Options) -> Result<GeminiResult> {
     cmd.kill_on_drop(true);
     let mut child = cmd.spawn().context("Failed to spawn gemini command")?;
 
-    match timeout(
-        timeout_duration,
-        run_with_child(&mut child, opts.return_all_messages),
-    )
+    // On Windows, assign child to a Job Object so the entire process tree
+    // (cmd.exe + descendants) is killed when the job is terminated or dropped.
+    #[cfg(windows)]
+    let job = child.id().and_then(|pid| {
+        let j = job_object::ProcessJob::assign(pid);
+        if j.is_none() {
+            eprintln!(
+                "warning: failed to assign child process (pid {}) to job object; \
+                 process tree kill on timeout will be best-effort",
+                pid
+            );
+        }
+        j
+    });
+    match timeout(timeout_duration, async {
+        // Write prompt via stdin (replaces deprecated --prompt flag)
+        if let Some(mut stdin_pipe) = child.stdin.take() {
+            stdin_pipe
+                .write_all(opts.prompt.as_bytes())
+                .await
+                .context("Failed to write prompt to stdin")?;
+            drop(stdin_pipe); // Close stdin to signal EOF
+        }
+
+        run_with_child(&mut child, opts.return_all_messages).await
+    })
     .await
     {
         Ok(result) => result,
         Err(_) => {
-            // Explicitly kill the child process on timeout to avoid zombies
+            // Kill the child process tree on timeout.
+            #[cfg(windows)]
+            if let Some(ref j) = job {
+                j.terminate();
+            }
             let _ = child.kill().await;
-            let _ = child.wait().await;
+            let _ = timeout(Duration::from_secs(5), child.wait()).await;
             Err(anyhow::anyhow!(
                 "Gemini command timed out after {} seconds",
                 timeout_duration.as_secs()
